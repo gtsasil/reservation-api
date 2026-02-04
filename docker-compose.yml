@@ -1,0 +1,37 @@
+services:
+  # Banco de Dados Principal
+  postgres:
+    image: postgres:16-alpine
+    container_name: hotel_postgres
+    environment:
+      - POSTGRES_DB=hotel_db
+      - POSTGRES_USER=hotel_user
+      - POSTGRES_PASSWORD=hotel_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - hotel-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotel_user -d hotel_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Cache Distribuído & Locks
+  redis:
+    image: redis:7-alpine
+    container_name: hotel_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - hotel-network
+    command: redis-server --save 60 1 --loglevel warning
+
+networks:
+  hotel-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
