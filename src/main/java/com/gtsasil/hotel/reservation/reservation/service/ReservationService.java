@@ -2,10 +2,15 @@ package com.gtsasil.hotel.reservation.reservation.service;
 
 
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.gtsasil.hotel.reservation.hotel.domain.Hotel;
+import com.gtsasil.hotel.reservation.hotel.domain.Room;
+import com.gtsasil.hotel.reservation.hotel.repository.HotelRepository;
 import com.gtsasil.hotel.reservation.reservation.api.dto.ReservationRequest;
 import com.gtsasil.hotel.reservation.reservation.domain.Reservation;
 import com.gtsasil.hotel.reservation.reservation.domain.RoomAvailability;
@@ -14,6 +19,7 @@ import com.gtsasil.hotel.reservation.reservation.repository.RoomAvailabilityRepo
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -21,12 +27,17 @@ public class ReservationService {
 
     private final RoomAvailabilityRepository availabilityRepository;
     private final ReservationRepository reservationRepository;
+    private final HotelRepository hotelRepository;
 
     /**
      * THE CORE OF THE SYSTEM
      * @Transactional is mandatory here. The Pessimistic Lock only lasts
      * while the transaction is open. As soon as the method ends, the database unlocks.
+     * @CacheEvict clears the "hotels" cache in Redis whenever a new reservation is successfully created,
+     * ensuring the next hotel listing fetches fresh data from the database
      */
+    @SuppressWarnings("null") // Suppress warnings related to effectively final variables in the loop
+    @CacheEvict(cacheNames = "hotels", allEntries = true) // Invalidate hotel cache after reservation changes availability
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public Long createReservation(ReservationRequest request) {
         
@@ -64,6 +75,20 @@ public class ReservationService {
 
         // 5. If reached here, successfully locked and decremented ALL days.
         // Now we can create the reservation receipt.
+        long days = ChronoUnit.DAYS.between(request.checkIn(), request.checkOut());
+        
+        Hotel hotel = hotelRepository.findById(request.hotelId())
+                .orElseThrow(() -> new IllegalArgumentException("Hotel not found"));
+                
+        BigDecimal roomPrice = hotel.getRooms().stream()
+                .filter(room -> room.getType().equals(request.roomType()))
+                .findFirst()
+                .map(Room::getBasePrice)
+                .orElseThrow(() -> new IllegalArgumentException("Room type not found for this hotel"));
+
+        BigDecimal calculatedTotalPrice = roomPrice.multiply(BigDecimal.valueOf(days));
+
+        // Now we can create the reservation receipt.
         Reservation reservation = Reservation.builder()
                 .hotelId(request.hotelId())
                 .userEmail(request.email())
@@ -71,7 +96,7 @@ public class ReservationService {
                 .checkIn(request.checkIn())
                 .checkOut(request.checkOut())
                 .status("CONFIRMED")
-                .totalPrice(BigDecimal.ZERO) // TODO: Calculate real price by fetching from Hotel entity
+                .totalPrice(calculatedTotalPrice)
                 .build();
 
         return reservationRepository.save(reservation).getId();
