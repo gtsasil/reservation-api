@@ -7,5 +7,5 @@ import com.gtsasil.hotel.reservation.reservation.domain.Reservation;
 
 @Repository
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
-    // Agora o .save(), .findById(), etc. existem magicamente!
+
 }

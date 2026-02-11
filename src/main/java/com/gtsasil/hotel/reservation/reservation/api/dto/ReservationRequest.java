@@ -6,18 +6,18 @@ import jakarta.validation.constraints.Email;
 import java.time.LocalDate;
 
 public record ReservationRequest(
-    @NotNull(message = "Hotel ID é obrigatório")
+    @NotNull(message = "Hotel ID is Mandatory")
     Long hotelId,
 
-    @NotNull(message = "Tipo do quarto é obrigatório")
+    @NotNull(message = "Room type is mandatory")
     String roomType,
 
-    @Email(message = "Email inválido")
+    @Email(message = "Invalid email")
     String email,
 
-    @NotNull @Future(message = "Check-in deve ser no futuro")
+    @NotNull @Future(message = "Check-in must be in the future")
     LocalDate checkIn,
 
-    @NotNull @Future(message = "Check-out deve ser no futuro")
+    @NotNull @Future(message = "Check-out must be in the future")
     LocalDate checkOut
 ) {}
